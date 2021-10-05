@@ -22,16 +22,16 @@ sc = pygame.display.set_mode((W, H))
 #Task 1 - specific constants
 
 BIRD_LOC = vec(250, 350)
-FISH_LOC = vec(0, 0)
+FISH_LOC = vec(500, 500)
 #
 
 DISTANT_BIRD_WIDTH = 200
 DISTANT_BIRD_HEIGHT = 20
-BIRD_BODY_RECT = (BIRD_LOC, vec(400, 150))
-BIRD_LEG_RECT = (BIRD_LOC + vec(0.45*BIRD_BODY_RECT[1][0], 0.7*BIRD_BODY_RECT[1][1]), vec(250, 250))
-BIRD_WING_RECT = (BIRD_LOC + vec(-100, -220), vec(375, 300))
-BIRD_FACE_RECT = (BIRD_LOC + vec(BIRD_BODY_RECT[1][0] - 50, -15), vec(300, 100))
-BIRD_TAIL_RECT = (BIRD_LOC - vec(50, -25), vec(75, 75))
+BIRD_BODY_RECT = [vec(0, 0), vec(400, 150)]
+BIRD_LEG_RECT = [vec(0, 0) + vec(0.45*BIRD_BODY_RECT[1][0], 0.7*BIRD_BODY_RECT[1][1]), vec(250, 250)]
+BIRD_WING_RECT = [vec(0, 0) + vec(-100, -220), vec(375, 300)]
+BIRD_FACE_RECT = [vec(0, 0) + vec(BIRD_BODY_RECT[1][0] - 50, -15), vec(300, 100)]
+BIRD_TAIL_RECT = [vec(0, 0) - vec(50, -25), vec(75, 75)]
 
 ###
 def scale_sequence(seq, sf):
@@ -49,11 +49,13 @@ class Palette:
 		self.white = clr('#ffffff')
 
 class Bird:
-	def __init__(self, palette):
+	def __init__(self, pos, palette):
 		self.p = palette
+		self.pos = pos
 
 	def leg(self, lig_pos=0, sf=1):
 		blr = scale_sequence(BIRD_LEG_RECT, sf)
+		blr[0] += self.pos
 
 		leg_surf = pygame.Surface(blr[1], pygame.SRCALPHA, 32)
 
@@ -70,23 +72,26 @@ class Bird:
 		return leg_surf, blr[0]
 
 	def wings(self, sf=1):
-		bwr = scale_sequence(BIRD_WING_RECT, sf)
+		bwr = BIRD_WING_RECT
+		bwr[0] += self.pos
+
 		wing_points = (vec(0, 50), vec(175, 20), vec(250, 300))
 		wing_surf = pygame.Surface(bwr[1], pygame.SRCALPHA, 32)
 
 		wing_points = [v + vec(75, -20) for v in wing_points]
-		polygon(wing_surf, self.p.white, [v*sf for v in wing_points])
-		gfxpolygon(wing_surf, [v*sf for v in wing_points], self.p.black)
+		polygon(wing_surf, self.p.white, wing_points)
+		gfxpolygon(wing_surf, wing_points, self.p.black)
 
 		wing_points = [v + vec(-75, +20) for v in wing_points]
-		polygon(wing_surf, self.p.white, [v*sf for v in wing_points])
-		gfxpolygon(wing_surf, [v*sf for v in wing_points], self.p.black)
+		polygon(wing_surf, self.p.white, wing_points)
+		gfxpolygon(wing_surf, wing_points, self.p.black)
 
 		return wing_surf, bwr[0]
 
 
 	def body(self, sf=1):
-		bbr = scale_sequence(BIRD_BODY_RECT, sf)
+		bbr = BIRD_BODY_RECT
+		bbr[0] += self.pos
 
 		body_surf = pygame.Surface(bbr[1], pygame.SRCALPHA, 32)
 		ellipse(body_surf, self.p.white, ((0, 0), bbr[1]))
@@ -94,27 +99,28 @@ class Bird:
 		return body_surf, bbr[0]
 
 	def face(self, sf=1):
-		bfr = scale_sequence(BIRD_FACE_RECT, sf)
+		bfr = BIRD_FACE_RECT
+		bfr[0] += self.pos
 		neck_rect = (vec(0, 50), vec(120, 45))
 		#head_surf = pygame.Surface((sf* vec(200), sf* vec(60)), pygame.SRCALPHA, 32)
 		head_rect_dim = vec(90, 45)
 
 		face_surf = pygame.Surface(bfr[1], pygame.SRCALPHA, 32)
 
-		ellipse(face_surf, self.p.white, [sf*v for v in neck_rect]) # Neck
+		ellipse(face_surf, self.p.white, neck_rect) # Neck
 
-		beak_dims = sf*vec(60, 12)
+		beak_dims = vec(60, 12)
 		beak_surf = pygame.Surface(beak_dims, pygame.SRCALPHA, 32)
 
 		rect(beak_surf, self.p.yellow, ((0, 0), beak_dims))# \Beak
 		rect(beak_surf, self.p.black, ((0, 0), beak_dims), width=1)
 		beak_half1 = rotate(beak_surf, 5)
-		face_surf.blit(beak_half1, sf*vec(175, 45))
+		face_surf.blit(beak_half1, vec(175, 45))
 		beak_half2 = rotate(beak_surf, -5)
-		face_surf.blit(beak_half2, sf*vec(175, 50))# Beak
+		face_surf.blit(beak_half2, vec(175, 50))# Beak
 
-		ellipse(face_surf, self.p.white, (sf*vec(90, 30), sf*head_rect_dim)) # Head
-		ellipse(face_surf, self.p.black, (sf*vec(145, 40), 0.1*sf*head_rect_dim)) # Eye
+		ellipse(face_surf, self.p.white, (vec(90, 30), head_rect_dim)) # Head
+		ellipse(face_surf, self.p.black, (vec(145, 40), 0.1*head_rect_dim)) # Eye
 
 
 		
@@ -122,12 +128,14 @@ class Bird:
 		return face_surf, bfr[0]
 
 	def tail(self, sf=1):
-		btr = scale_sequence(BIRD_TAIL_RECT, sf)
+		btr = BIRD_TAIL_RECT
+		btr[0] += self.pos
+
 		tail_points = ((75, 25), (0, 0), (0, 75), (75, 50))
 
 		tail_surf = pygame.Surface(btr[1], pygame.SRCALPHA, 32)
-		polygon(tail_surf, self.p.white, [sf*vec(p) for p in tail_points])
-		gfxpolygon(tail_surf, [sf*vec(p) for p in tail_points], self.p.black)
+		polygon(tail_surf, self.p.white, tail_points)
+		gfxpolygon(tail_surf, tail_points, self.p.black)
 
 		return tail_surf, btr[0]
 
@@ -138,7 +146,7 @@ class Artist: # Класс для рисования единичных объе
 		self.sc = screen
 		self.p = palette
 
-		self.seagull = Bird(self.p)
+		self.seagull = Bird(BIRD_LOC, self.p)
 
 	def sky(self): # Отрисовка фона
 		self.sc.fill(self.p.sky[0])
@@ -157,7 +165,17 @@ class Artist: # Класс для рисования единичных объе
 		self.sc.blit(surf, (0, 2*H/3))
 
 	def fish(self, pos, sf=1, rot=0):
-		pass
+		fish_surf = pygame.Surface(vec(200, 100), pygame.SRCALPHA, 32)
+
+		polygon(fish_surf, self.p.black, (vec(0, 80), vec(75, 30), vec(0, 0)))
+		polygon(fish_surf, self.p.black, (vec(0, 80), vec(75, 30), vec(0, 0)), width=1)
+		ellipse(fish_surf, self.p.black, ((50, 0), vec(150, 60)))
+		ellipse(fish_surf, self.p.black, ((50, 0), vec(150, 60)), width=1)
+		
+		fish_surf = smoothscale(fish_surf, tuple(map(int, sf*vec(200, 100))))
+		fish_surf = rotate(fish_surf, rot)
+
+		self.sc.blit(fish_surf, pos)
 
 	########### Птица
 
@@ -165,20 +183,23 @@ class Artist: # Класс для рисования единичных объе
 
 	def bird(self, pos, sf=1, rot=0):
 		#self.sc.blit(self.seagull.wings(sf=1.2*sf)[0], scale_sequence(BIRD_WING_RECT[0], 1.2*sf))
+		self.seagull.pos = pos
 
 		bird_surf = pygame.Surface((W, H), pygame.SRCALPHA, 32)
 
-		bird_surf.blit(*self.seagull.wings())
-		bird_surf.blit(*self.seagull.tail())
+		bird_surf.blit(*self.seagull.wings(pos))
+		bird_surf.blit(*self.seagull.tail(pos))
 
-		bird_surf.blit(*self.seagull.body())
+		bird_surf.blit(*self.seagull.body(pos))
 
-		bird_surf.blit(self.seagull.leg()[0], (BIRD_LEG_RECT[0] - vec(50, 0)))
-		bird_surf.blit(self.seagull.leg()[0], (BIRD_LEG_RECT[0] + vec(50, 0)))
+		bird_surf.blit(self.seagull.leg(pos)[0], (pos + BIRD_LEG_RECT[0] - vec(50, 0)))
+		bird_surf.blit(self.seagull.leg(pos)[0], (pos + BIRD_LEG_RECT[0] + vec(50, 0)))
 
-		bird_surf.blit(*self.seagull.face())
+		bird_surf.blit(*self.seagull.face(pos))
 
-		self.sc.blit(smoothscale(bird_surf, tuple(map(int, sf*vec(W, H)))), (0, 0))
+		bird_surf = smoothscale(bird_surf, tuple(map(int, sf*vec(W, H))))
+		bird_surf = rotate(bird_surf, rot)
+		self.sc.blit(bird_surf, (0, 0))
 
 
 	def distant_bird(self, pos, rot=0, sf=1):
@@ -217,9 +238,9 @@ while not banish:
 			banish = True
 	if flag:
 		goya.sky()
-		#goya.fish(Fish_loc)
+		goya.fish(FISH_LOC)
 		goya.water()  
-		goya.bird(BIRD_LOC)
+		goya.bird(vec(100, 100), rot=5, sf=0.8)
 
 		goya.distant_bird((700, 250), rot=20, sf=1)
 		goya.distant_bird((520, 150), rot=-40, sf=0.4)
