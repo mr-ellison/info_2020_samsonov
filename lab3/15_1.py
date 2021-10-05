@@ -1,7 +1,7 @@
 #15_1
 import pygame
 from pygame import Color as clr
-from pygame.draw import ellipse, rect, polygon
+from pygame.draw import ellipse, rect, polygon, circle
 from pygame.gfxdraw import bezier#, aaellipse
 from pygame.gfxdraw import polygon as gfxpolygon
 from pygame.math import Vector2 as vec
@@ -47,6 +47,7 @@ class Palette:
 		self.yellow = clr('#ffdd55')
 		self.black = clr('#000000')
 		self.white = clr('#ffffff')
+		self.fish_scales = clr('#478893')
 
 class Bird:
 	def __init__(self, pos, palette):
@@ -161,16 +162,18 @@ class Artist: # Класс для рисования единичных объе
 	def water(self): # Прозрачный слой воды - фильтр для наложения поверх рыбы
 		surf = pygame.Surface((W, H/3 + 1))
 		surf.fill(self.p.water)
-		surf.set_alpha(225)
+		surf.set_alpha(150)
 		self.sc.blit(surf, (0, 2*H/3))
 
 	def fish(self, pos, sf=1, rot=0):
 		fish_surf = pygame.Surface(vec(200, 100), pygame.SRCALPHA, 32)
 
-		polygon(fish_surf, self.p.black, (vec(0, 80), vec(75, 30), vec(0, 0)))
-		polygon(fish_surf, self.p.black, (vec(0, 80), vec(75, 30), vec(0, 0)), width=1)
-		ellipse(fish_surf, self.p.black, ((50, 0), vec(150, 60)))
-		ellipse(fish_surf, self.p.black, ((50, 0), vec(150, 60)), width=1)
+		polygon(fish_surf, self.p.fish_scales, (vec(0, 80), vec(75, 30), vec(0, 0)))
+		polygon(fish_surf, self.p.fish_scales, (vec(0, 80), vec(75, 30), vec(0, 0)), width=1)
+		ellipse(fish_surf, self.p.fish_scales, ((50, 0), vec(150, 60)))
+		ellipse(fish_surf, self.p.fish_scales, ((50, 0), vec(150, 60)), width=1)
+		circle(fish_surf, self.p.white, (175, 35), 10)
+		circle(fish_surf, self.p.black, (175, 35), 7)
 		
 		fish_surf = smoothscale(fish_surf, tuple(map(int, sf*vec(200, 100))))
 		fish_surf = rotate(fish_surf, rot)
