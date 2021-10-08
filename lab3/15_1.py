@@ -40,14 +40,13 @@ def scale_sequence(seq, sf):
 #//////////////// Colors
 
 class Palette:
-	def __init__(self):
-		self.water = clr('#006680')
-		sky = ['#ff9955', '#de87aa', '#cd87de', '#8d5fd3', '#212178']
-		self.sky = list(map(clr, sky))
-		self.yellow = clr('#ffdd55')
-		self.black = clr('#000000')
-		self.white = clr('#ffffff')
-		self.fish_scales = clr('#478893')
+	water = clr('#006680')
+	sky = ['#ff9955', '#de87aa', '#cd87de', '#8d5fd3', '#212178']
+	sky = list(map(clr, sky))
+	yellow = clr('#ffdd55')
+	black = clr('#000000')
+	white = clr('#ffffff')
+	fish_scales = clr('#478893')
 
 class Bird:
 	def __init__(self, pos, palette):
