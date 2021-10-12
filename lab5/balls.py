@@ -2,7 +2,6 @@ import pygame as pg
 from pygame import Surface as Surf
 
 from pygame.draw import circle, arc, line, rect
-#import pygame.image as img
 import pygame.transform as tform
 
 from random import randint
@@ -28,13 +27,13 @@ ACTIVE_SCREEN_SIZE = vec(W-300, H-100)
 ACTIVE_SCREEN_TOPLEFT = vec(250, 75)
 active_screen = Surf(ACTIVE_SCREEN_SIZE)
 
-######## Восьмибитные славяне
+######## 
 
 def display_edges():
 	'''
 	A rectangle around the edges of the game zone. Gameplay elements inside, menus and indicators - outside
 	'''
-	rect(sc, WHITEY, (ACTIVE_SCREEN_TOPLEFT - vec(5, 5), ACTIVE_SCREEN_SIZE + vec(10, 10)), width = 10)
+	rect(sc, WHITE, (ACTIVE_SCREEN_TOPLEFT - vec(5, 5), ACTIVE_SCREEN_SIZE + vec(10, 10)), width = 10)
 
 def default_routine():
 	'''
@@ -59,6 +58,7 @@ def mouse_state():
 	return pg.mouse.get_pos() - vec(ACTIVE_SCREEN_TOPLEFT), pg.mouse.get_pressed()
 
 ######## 
+
 class SharedValue:
 	'''
 	Basically a variable I can pass into a function and still treat as a global variable
@@ -98,9 +98,9 @@ class Indicator:
 		self.soul = Surf(size)
 
 	def sketch(self):
-		self.soul.fill(GANT)
-		rect(self.soul, WHITEY, self.soul.get_rect(), width=3)
-		text_surf = self.font.render(str(self.ref.val), False, WHITEY)
+		self.soul.fill(BLACK)
+		rect(self.soul, WHITE, self.soul.get_rect(), width=3)
+		text_surf = self.font.render(str(self.ref.val), False, WHITE)
 		x = 0.5*(self.soul.get_rect()[2] - text_surf.get_rect()[2])
 		y = 0.5*(self.soul.get_rect()[3] - text_surf.get_rect()[3])
 
@@ -113,10 +113,10 @@ class Indicator:
 		self.sketch()
 		self.draw()
 
-class ControlElement(Indicator):
+class Button(Indicator):
 	'''
 	Basically a button
-	Actualy an indicator with a func that is called each time the ControlElement instance is clicked on
+	Actualy an indicator with a func that is called each time the Button instance is clicked on
 	'''
 	font = pg.font.Font('fonts\\Ruslan Display\\RuslanDisplay.ttf', 24)
 
@@ -136,14 +136,13 @@ class ControlElement(Indicator):
 
 ######### Colors
 
-GANT = (0, 0, 0) # Black, basically - the color of what is left when everything has perished
+BLACK = (0, 0, 0) 
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
-WHITEY = (255, 255, 255)
+WHITE = (255, 255, 255)
 YELLOW = (255, 255, 0)
-
-VIRIC = (255, 0, 255) # Magenta - balls become this color for a moment before the program forgets them entirely
+MAGENTA = (255, 0, 255) 
 
 #########
 
@@ -156,7 +155,7 @@ class BallType(Enum):
 	'''
 	An enum to store different templates for enemies
 	([:color:, :base_hp:, :point_value:], generation_routine)
-	generation_routine is a function that returns x, y, r and v to initialise the spaceball
+	generation_routine is a function that returns x, y, r and v to initialize the spaceball
 	'''
 	BASIC = ([RED, 1, 10], default_routine)
 	LIEUTENANT = ([BLUE, 3, 100], default_routine)
@@ -176,17 +175,17 @@ class Enemy:
 		
 
 		self.sc = screen # Main screen to be blitted onto
-		self.color, self.hp, self.points = data[0] 
+		self.color, self.hp, self.points = data[0] # Basic attributes, shape-unrelated
 
-		self.loc = (100, 100)
-		self.r = 50
+		self.loc = (100, 100) # Default location on screen
+		self.r = 50 # Default size
 
-		self.soul = Surf(2*vec(self.r, self.r))
+		self.soul = Surf(2*vec(self.r, self.r)) # A surface on which the whole shape will be drawn to be blitted onto main screen
 
 	############# These methods will work as soon as other atrributes and methods are redefined in a child class
 
 	def __del__(self):
-		self.color = VIRIC
+		self.color = MAGENTA
 		self.sketch()
 		self.draw()
 	
@@ -199,16 +198,19 @@ class Enemy:
 		return self.loc[1]
 
 	def evolute(self):
+		'''
+		Change the enemy's state from one to the next iteration of the main cycle
+		'''
 		if self.hp <= 0:
 			self.perish = True
 			self.scoreboard.add(self.points)
-			#self.color = VIRIC
+			#self.color = MAGENTA
 			return
 		self.move()
 
 	def update(self):
 		'''
-		Update the :self.soul: surface
+		update the enemy's representation on the active screen
 		'''
 		self.sketch()
 		self.draw()
@@ -217,13 +219,13 @@ class Enemy:
 
 	def sketch(self):
 		'''
-		Updates the soul
+		Update the inner surface that will be blitted onto the active screen
 		'''
-		self.soul.fill(WHITEY)
+		self.soul.fill(WHITE)
 
 	def move(self):
 		'''
-		Move the ball according to its velocity, reflect off a wall if necessary
+		Move the enemy according to its velocity, reflect off a wall if necessary
 		'''
 		self.loc += [(self.loc[i] + self.v[i]) % ACTIVE_SCREEN_SIZE[i] for i in range(2)]
 
@@ -240,7 +242,7 @@ class Enemy:
 		'''
 		return False
 
-class SpaceBall(Enemy):
+class Orb(Enemy):
 	def __init__(self, screen=active_screen, variety='BASIC', score_tracker=SCORE):
 		super().__init__(screen, variety, score_tracker)
 		variety = BallType[variety].value
@@ -248,7 +250,7 @@ class SpaceBall(Enemy):
 		self.loc = vec(self.loc)
 
 		self.soul = Surf(2*vec(self.r, self.r)) # Surface with the shape of the ball
-		self.soul.set_colorkey(GANT)
+		self.soul.set_colorkey(BLACK)
 
 	def move(self):
 		self.loc += self.v
@@ -279,7 +281,7 @@ class SpaceBall(Enemy):
 		if (vec(hole_loc) - self.loc).magnitude_squared() <= self.r**2:
 			self.hp -= 1
 
-class SpaceRing(Enemy):
+class Ring(Enemy):
 	def __init__(self, screen=active_screen, variety='RING', score_tracker=SCORE):
 		super().__init__(screen, variety, score_tracker)
 		variety = BallType[variety].value
@@ -288,7 +290,7 @@ class SpaceRing(Enemy):
 		self.loc = vec(self.loc)
 
 		self.soul = Surf(2*vec(self.r[1], self.r[1])) # Surface with the shape of the ball
-		self.soul.set_colorkey(GANT)
+		self.soul.set_colorkey(BLACK)
 
 	@property
 	def r_in(self):
@@ -324,10 +326,10 @@ class SpaceRing(Enemy):
 
 	def sketch(self):
 		self.soul = Surf(2*vec(self.r_out, self.r_out)) 
-		self.soul.set_colorkey(GANT)
+		self.soul.set_colorkey(BLACK)
 
 		circle(self.soul, self.color, (self.r_out, self.r_out), self.r_out)
-		circle(self.soul, GANT, (self.r_out, self.r_out), self.r_in)
+		circle(self.soul, BLACK, (self.r_out, self.r_out), self.r_in)
 
 	def draw(self):
 		self.sc.blit(self.soul, self.loc - vec(self.r_out, self.r_out))
@@ -337,12 +339,9 @@ class SpaceRing(Enemy):
 		if self.r_in**2 <= (vec(hole_loc) - self.loc).magnitude_squared() <= self.r_out**2:
 			self.hp -= 1
 
-class SpaceBallUnreflecting(SpaceBall):
+class OrbUnreflecting(Orb): # A ball that shifts through walls instead of reflecting off them
 	def move(self):
-		'''
-		Move the ball according to its velocity, reflect off a wall if necessary
-		'''
-		self.loc = [(self.loc[i] + self.v[i]) % (ACTIVE_SCREEN_SIZE[i] + self.r) for i in range(2)]
+		self.loc = [(self.loc[i] + self.v[i]) % (ACTIVE_SCREEN_SIZE[i] + 2* self.r) - self.r/ACTIVE_SCREEN_SIZE[i]  for i in range(2)]
 	
 
 ####### Cursor artists
@@ -355,10 +354,10 @@ what proportion of the reload time has passed
 '''
 
 def target(soul, reload_gauge_value):
-	arc(soul, WHITEY, ((5, 5), (20, 20)), start_angle=0, 
+	arc(soul, WHITE, ((5, 5), (20, 20)), start_angle=0, 
 			stop_angle=2*pi*reload_gauge_value, width=1)
-	line(soul, WHITEY, (0, 15), (30, 15), width=2)
-	line(soul, WHITEY, (15, 0), (15, 30), width=2)
+	line(soul, WHITE, (0, 15), (30, 15), width=2)
+	line(soul, WHITE, (15, 0), (15, 30), width=2)
 
 #######
 
@@ -367,13 +366,13 @@ class Cursor:
 	Class for drawing custom dynamic cursors
 	'''
 
-	def __init__(self, screen=active_screen):
+	def __init__(self, screen=active_screen, artist_func=target):
 		self.soul = Surf((30, 30), pg.SRCALPHA, 32)
-		self.soul.set_colorkey(GANT)
+		self.soul.set_colorkey(BLACK)
 
 		self.loaded_margin = 20
 		self.reload_state = 0
-		self.artist = target
+		self.artist = artist_func
 
 		self.sc = screen
 
@@ -389,7 +388,7 @@ class Cursor:
 		self.reload_state = 0
 
 	def sketch(self):
-		self.soul.fill(GANT)
+		self.soul.fill(BLACK)
 		self.artist(self.soul, self.reload_state/self.loaded_margin)
 
 	def draw(self):
@@ -400,9 +399,9 @@ class Cursor:
 ##############
 
 manip = Cursor(active_screen)
-enemies = [SpaceBall() for i in range(3)]
-enemies.append(SpaceBallUnreflecting())
-enemies.append(SpaceRing())
+enemies = [Orb() for i in range(3)]
+enemies.append(OrbUnreflecting())
+enemies.append(Ring())
 
 scoreboard = Indicator(referrent=SCORE, position=(22.5, 75))
 update_flag = SharedValue(False)
@@ -414,10 +413,10 @@ many_flag = SharedValue(False)
 def next_wave_func(flag):
 	flag.switch()
 
-next_wave_button = ControlElement(referrent=SharedValue('Ещё Шаров'), position=(22.5, 200), click_functionality=next_wave_func, click_arg=[update_flag])
-boss_button = ControlElement(referrent=SharedValue('БОЛЬШОЙ'), position=(22.5, 325), click_functionality=next_wave_func, click_arg=[boss_flag])
-clear_button = ControlElement(referrent=SharedValue('Резня'), position=(22.5, 450), click_functionality=next_wave_func, click_arg=[clear_flag])
-many_button = ControlElement(referrent=SharedValue('Тьма'), position=(22.5, 575), click_functionality=next_wave_func, click_arg=[many_flag])
+next_wave_button = Button(referrent=SharedValue('next wave'), position=(22.5, 200), click_functionality=next_wave_func, click_arg=[update_flag])
+boss_button = Button(referrent=SharedValue('boss ball'), position=(22.5, 325), click_functionality=next_wave_func, click_arg=[boss_flag])
+clear_button = Button(referrent=SharedValue('clear screen'), position=(22.5, 450), click_functionality=next_wave_func, click_arg=[clear_flag])
+many_button = Button(referrent=SharedValue('Spawn many'), position=(22.5, 575), click_functionality=next_wave_func, click_arg=[many_flag])
 
 while not retire:
 	clock.tick(FPS)
@@ -441,12 +440,12 @@ while not retire:
 	display_edges()
 
 	if update_flag.val:
-		enemies += [SpaceBall() for i in range(3)]
-		enemies += [SpaceRing()]
+		enemies += [Orb() for i in range(3)]
+		enemies += [Ring()]
 		update_flag.switch()
 
 	if boss_flag.val:
-		enemies += [SpaceBallUnreflecting(variety='GENERAL')]
+		enemies += [OrbUnreflecting(variety='GENERAL')]
 		boss_flag.switch()
 
 	if clear_flag.val:
@@ -454,14 +453,15 @@ while not retire:
 		clear_flag.switch()
 
 	if many_flag.val:
-		enemies = [SpaceBall() for i in range(8)]
-		enemies += [SpaceBall(variety='LIEUTENANT') for i in range(3)]
-		enemies += [SpaceRing() for i in range(5)]
-		enemies += [SpaceBallUnreflecting(variety='GENERAL') for i in range(3)]
-		enemies += [SpaceBallUnreflecting(variety='LIEUTENANT') for i in range(5)]
+		enemies = [Orb() for i in range(8)]
+		enemies += [Orb(variety='LIEUTENANT') for i in range(3)]
+		enemies += [Ring() for i in range(5)]
+		enemies += [OrbUnreflecting(variety='GENERAL') for i in range(3)]
+		enemies += [OrbUnreflecting(variety='LIEUTENANT') for i in range(5)]
 		many_flag.switch()
 	
-	active_screen.fill(GANT)
+	active_screen.fill(BLACK)
+
 	for nme in enemies:
 		nme.evolute()
 		if nme.perish:
