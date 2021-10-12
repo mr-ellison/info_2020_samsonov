@@ -35,6 +35,14 @@ def display_edges():
 	'''
 	rect(sc, WHITE, (ACTIVE_SCREEN_TOPLEFT - vec(5, 5), ACTIVE_SCREEN_SIZE + vec(10, 10)), width = 10)
 
+def mouse_state():
+	'''
+	Returns the position of the mouse relative to ACTIVE_SCREEN_TOPLEFT and button state sequence
+	'''
+	return pg.mouse.get_pos() - vec(ACTIVE_SCREEN_TOPLEFT), pg.mouse.get_pressed()
+
+####### These functions describe routines for generating starting parameters for new enemies
+
 def default_routine():
 	'''
 	Default enemy creating rountine - random integer coordinates, radius and velocity
@@ -51,17 +59,11 @@ def ring_routine():
 	min_y, max_y = r_out, ACTIVE_SCREEN_SIZE[1] - r_out
 	return (randint(min_x, max_x), randint(min_y, max_y)), vec(r_in, r_out), vec(randint(-2, 2), randint(-2, 2)), vec(randint(0, 3))
 
-def mouse_state():
-	'''
-	returns the position of the mouse relative to ACTIVE_SCREEN_TOPLEFT and button state sequence
-	'''
-	return pg.mouse.get_pos() - vec(ACTIVE_SCREEN_TOPLEFT), pg.mouse.get_pressed()
-
-######## 
+######## Functional classes
 
 class SharedValue:
 	'''
-	Basically a variable I can pass into a function and still treat as a global variable
+	Basically a variable I can pass into a function/instance of a class and still treat as a global variable
 	An implementation of some pointer functionality
 	'''
 
@@ -151,11 +153,11 @@ SCORE = SharedValue(0)
 ########
 
 @unique
-class BallType(Enum):
+class EnemyType(Enum):
 	'''
 	An enum to store different templates for enemies
 	([:color:, :base_hp:, :point_value:], generation_routine)
-	generation_routine is a function that returns x, y, r and v to initialize the spaceball
+	generation_routine is a function that returns parameters to initialize the starting position and velocity
 	'''
 	BASIC = ([RED, 1, 10], default_routine)
 	LIEUTENANT = ([BLUE, 3, 100], default_routine)
@@ -168,7 +170,7 @@ class Enemy:
 	Enemy class 
 	'''
 	def __init__(self, screen=active_screen, variety='BASIC', score_tracker=SCORE):
-		data = BallType[variety].value
+		data = EnemyType[variety].value
 
 		self.perish = False # A flag to be able to call del from outside the class
 		self.scoreboard = score_tracker # An indicator pointing to a SharedValue of the game score
@@ -237,7 +239,7 @@ class Enemy:
 
 	def hit(self):
 		'''	
-		Determines wether the point :hole_loc: is inside the ball
+		Determines wether the point :hole_loc: is inside the enemy's hitbox
 		If so, decrements hp
 		'''
 		return False
@@ -245,11 +247,11 @@ class Enemy:
 class Orb(Enemy):
 	def __init__(self, screen=active_screen, variety='BASIC', score_tracker=SCORE):
 		super().__init__(screen, variety, score_tracker)
-		variety = BallType[variety].value
+		variety = EnemyType[variety].value
 		self.loc, self.r, self.v = variety[1]()
 		self.loc = vec(self.loc)
 
-		self.soul = Surf(2*vec(self.r, self.r)) # Surface with the shape of the ball
+		self.soul = Surf(2*vec(self.r, self.r)) # Surface with the shape of the orb
 		self.soul.set_colorkey(BLACK)
 
 	def move(self):
@@ -284,12 +286,12 @@ class Orb(Enemy):
 class Ring(Enemy):
 	def __init__(self, screen=active_screen, variety='RING', score_tracker=SCORE):
 		super().__init__(screen, variety, score_tracker)
-		variety = BallType[variety].value
+		variety = EnemyType[variety].value
 		self.loc, self.r, self.v, self.dr = variety[1]()
 		
 		self.loc = vec(self.loc)
 
-		self.soul = Surf(2*vec(self.r[1], self.r[1])) # Surface with the shape of the ball
+		self.soul = Surf(2*vec(self.r[1], self.r[1])) # Surface with the shape of the orb
 		self.soul.set_colorkey(BLACK)
 
 	@property
@@ -339,7 +341,7 @@ class Ring(Enemy):
 		if self.r_in**2 <= (vec(hole_loc) - self.loc).magnitude_squared() <= self.r_out**2:
 			self.hp -= 1
 
-class OrbUnreflecting(Orb): # A ball that shifts through walls instead of reflecting off them
+class OrbUnreflecting(Orb): # An orb that shifts through walls instead of reflecting off them
 	def move(self):
 		self.loc = [(self.loc[i] + self.v[i]) % (ACTIVE_SCREEN_SIZE[i] + 2* self.r) - self.r/ACTIVE_SCREEN_SIZE[i]  for i in range(2)]
 	
@@ -347,7 +349,7 @@ class OrbUnreflecting(Orb): # A ball that shifts through walls instead of reflec
 ####### Cursor artists
 
 '''
-This type of functions takes only a screen (the cursor's :soul:)
+This set of functions takes only a screen (the cursor's :soul:)
 and a float between 0 and 1 representing the reloading state.
 They are used to draw custom cursors, which are animated based on
 what proportion of the reload time has passed
