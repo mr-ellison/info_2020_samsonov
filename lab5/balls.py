@@ -355,7 +355,7 @@ class OrbUnreflecting(Orb): # An orb that shifts through walls instead of reflec
 
 class OrbFleeing(OrbUnreflecting): # An orb that always moves away from the cursor
 	def move(self):
-		cursor_loc = mouse_state()[0]
+		cursor_loc = pg.mouse.get_pos()
 		if cursor_loc[0] > 0 and cursor_loc[1] > 0:
 			self.v = (self.loc - cursor_loc)
 			self.v /= self.v.magnitude()
@@ -419,8 +419,44 @@ class Cursor:
 
 ##############
 
-CONTROLS = []
-INDICATORS = []
+@unique
+class States(Enum):
+	START_MENU = 0
+	GAME = 1
+	PAUSE = 2
+	SAVE_MENU = 3
+
+########
+
+class StateMachine:
+	def __init__(self, state=States.START_MENU):
+		self.state = state
+		self.environments = dict( zip(States, [dict() for i in States]) )
+	
+	@property
+	def fields(self):
+		return self.environments[self.state]
+
+	def create_seq_field(self, name, value=[]):
+		self.fields[name] = value
+
+	def create_bool_field(self, name, value=False):
+		self.fields[name] = value
+
+	def create_str_field(self, name, value=''):
+		self.fields[name] = value
+########
+
+machina = StateMachine(state=States.GAME)
+machina.create_seq_field('ENEMIES', [])
+machina.create_seq_field('CONTROLS', [])
+machina.create_seq_field('INDICATORS', [])
+
+manip = Cursor(active_screen)
+
+ENEMIES = machina.fields['ENEMIES']
+CONTROLS = machina.fields['CONTROLS']
+INDICATORS = machina.fields['INDICATORS']
 
 def new_button(*args, **kwargs):
 	CONTROLS.append(Button(**kwargs))
@@ -440,16 +476,10 @@ def update_menu_items():
 	for ind in INDICATORS:
 		ind.update()
 
-##############
-
-
-########
-
-manip = Cursor(active_screen)
-
-ENEMIES = []
-
 scoreboard = new_indicator(referrent=SCORE, position=(22.5, 75))
+
+def exit_func():
+	pg.event.post(pg.QUIT)
 
 def next_wave_func():
 	global ENEMIES
