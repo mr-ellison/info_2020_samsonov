@@ -4,7 +4,7 @@ from pygame import Surface as Surf
 from pygame.draw import circle, arc, line, rect
 import pygame.transform as tform
 
-from random import randint
+from random import randint, choice
 from pygame.math import Vector2 as vec
 from math import pi
 
@@ -41,7 +41,7 @@ def mouse_state():
 	'''
 	return pg.mouse.get_pos() - vec(ACTIVE_SCREEN_TOPLEFT), pg.mouse.get_pressed()
 
-####### These functions describe routines for generating starting parameters for new enemies
+####### These functions describe routines for generating starting parameters for new ENEMIES
 
 def default_routine():
 	'''
@@ -51,7 +51,7 @@ def default_routine():
 	return (randint(r, ACTIVE_SCREEN_SIZE[0] - r), randint(r, ACTIVE_SCREEN_SIZE[1] - r)), r, vec(randint(-2, 2), randint(-2, 2))
 
 def boss_routine():
-	return ACTIVE_SCREEN_SIZE*0.5, 20, vec(-5, 5)
+	return ACTIVE_SCREEN_SIZE*0.5, 20, vec(choice([-5, 5]), choice([-5, 5]))
 
 def ring_routine():
 	r_in, r_out = 15, 25
@@ -145,6 +145,7 @@ BLUE = (0, 0, 255)
 WHITE = (255, 255, 255)
 YELLOW = (255, 255, 0)
 MAGENTA = (255, 0, 255) 
+PINK = (100, 100, 100)
 
 #########
 
@@ -155,15 +156,16 @@ SCORE = SharedValue(0)
 @unique
 class EnemyType(Enum):
 	'''
-	An enum to store different templates for enemies
+	An enum to store different templates for ENEMIES
 	([:color:, :base_hp:, :point_value:], generation_routine)
 	generation_routine is a function that returns parameters to initialize the starting position and velocity
 	'''
 	BASIC = ([RED, 1, 10], default_routine)
-	LIEUTENANT = ([BLUE, 3, 100], default_routine)
+	LIEUTENANT = ([BLUE, 2, 30], default_routine)
 	GENERAL = ([GREEN, 10, 500], boss_routine)
 	RING = ([YELLOW, 1, 50], ring_routine)
 	FIGHTER = ([YELLOW, 3, 50], default_routine)
+	COWARD = ([PINK, 1, 100], default_routine)
 
 class Enemy:
 	'''
@@ -174,7 +176,10 @@ class Enemy:
 
 		self.perish = False # A flag to be able to call del from outside the class
 		self.scoreboard = score_tracker # An indicator pointing to a SharedValue of the game score
-		
+
+		##########
+		self.base_speed = 3
+		########
 
 		self.sc = screen # Main screen to be blitted onto
 		self.color, self.hp, self.points = data[0] # Basic attributes, shape-unrelated
@@ -216,6 +221,9 @@ class Enemy:
 		'''
 		self.sketch()
 		self.draw()
+	
+	def take_damage(self, dmg=1):
+		self.hp -= dmg
 
 	############## These methods demonstrate default behaviour, need to be redefined in child classes
 
@@ -237,12 +245,12 @@ class Enemy:
 		'''
 		self.sc.blit(self.soul, (100, 100))
 
-	def hit(self):
+	def hit(self, dmg=0):
 		'''	
 		Determines wether the point :hole_loc: is inside the enemy's hitbox
 		If so, decrements hp
 		'''
-		return False
+		pass
 
 class Orb(Enemy):
 	def __init__(self, screen=active_screen, variety='BASIC', score_tracker=SCORE):
@@ -278,10 +286,10 @@ class Orb(Enemy):
 	def draw(self):
 		self.sc.blit(self.soul, self.loc - vec(self.r, self.r))
 
-	def hit(self):
+	def hit(self, dmg=1):
 		hole_loc = mouse_state()[0]
 		if (vec(hole_loc) - self.loc).magnitude_squared() <= self.r**2:
-			self.hp -= 1
+			self.take_damage(dmg)
 
 class Ring(Enemy):
 	def __init__(self, screen=active_screen, variety='RING', score_tracker=SCORE):
@@ -336,14 +344,24 @@ class Ring(Enemy):
 	def draw(self):
 		self.sc.blit(self.soul, self.loc - vec(self.r_out, self.r_out))
 
-	def hit(self):
+	def hit(self, dmg=1):
 		hole_loc = mouse_state()[0]
 		if self.r_in**2 <= (vec(hole_loc) - self.loc).magnitude_squared() <= self.r_out**2:
-			self.hp -= 1
+			self.hp -= dmg
 
 class OrbUnreflecting(Orb): # An orb that shifts through walls instead of reflecting off them
 	def move(self):
 		self.loc = [(self.loc[i] + self.v[i]) % (ACTIVE_SCREEN_SIZE[i] + 2* self.r) - self.r/ACTIVE_SCREEN_SIZE[i]  for i in range(2)]
+
+class OrbFleeing(OrbUnreflecting): # An orb that always moves away from the cursor
+	def move(self):
+		cursor_loc = mouse_state()[0]
+		if cursor_loc[0] > 0 and cursor_loc[1] > 0:
+			self.v = (self.loc - cursor_loc)
+			self.v /= self.v.magnitude()
+			self.v *= self.base_speed
+		super().move()
+
 	
 
 ####### Cursor artists
@@ -368,7 +386,7 @@ class Cursor:
 	Class for drawing custom dynamic cursors
 	'''
 
-	def __init__(self, screen=active_screen, artist_func=target):
+	def __init__(self, screen=active_screen, artist_func=target, button_logic='click', damage_per_hit=1):
 		self.soul = Surf((30, 30), pg.SRCALPHA, 32)
 		self.soul.set_colorkey(BLACK)
 
@@ -378,6 +396,7 @@ class Cursor:
 
 		self.sc = screen
 
+		self.dmg = damage_per_hit
 	
 	def evolute(self):
 		if self.reload_state >= self.loaded_margin:
@@ -400,25 +419,66 @@ class Cursor:
 
 ##############
 
+CONTROLS = []
+INDICATORS = []
+
+def new_button(*args, **kwargs):
+	CONTROLS.append(Button(**kwargs))
+	return CONTROLS[-1]
+
+def new_indicator(*args, **kwargs):
+	INDICATORS.append(Indicator(**kwargs))
+	return INDICATORS[-1]
+
+def click_buttons():
+	for btn in CONTROLS:
+		btn.click()
+
+def update_menu_items():
+	for btn in CONTROLS:
+		btn.update()
+	for ind in INDICATORS:
+		ind.update()
+
+##############
+
+
+########
+
 manip = Cursor(active_screen)
-enemies = [Orb() for i in range(3)]
-enemies.append(OrbUnreflecting())
-enemies.append(Ring())
 
-scoreboard = Indicator(referrent=SCORE, position=(22.5, 75))
-update_flag = SharedValue(False)
+ENEMIES = []
 
-boss_flag = SharedValue(False)
-clear_flag = SharedValue(False)
-many_flag = SharedValue(False)
+scoreboard = new_indicator(referrent=SCORE, position=(22.5, 75))
 
-def next_wave_func(flag):
-	flag.switch()
+def next_wave_func():
+	global ENEMIES
+	ENEMIES += [Orb() for i in range(3)]
+	#ENEMIES += [OrbFleeing(variety='COWARD')]
+	ENEMIES += [Ring()]
 
-next_wave_button = Button(referrent=SharedValue('next wave'), position=(22.5, 200), click_functionality=next_wave_func, click_arg=[update_flag])
-boss_button = Button(referrent=SharedValue('boss ball'), position=(22.5, 325), click_functionality=next_wave_func, click_arg=[boss_flag])
-clear_button = Button(referrent=SharedValue('clear screen'), position=(22.5, 450), click_functionality=next_wave_func, click_arg=[clear_flag])
-many_button = Button(referrent=SharedValue('Spawn many'), position=(22.5, 575), click_functionality=next_wave_func, click_arg=[many_flag])
+def clear_screen_func():
+	global ENEMIES
+	ENEMIES = []
+
+def spawn_horde_func():
+	global ENEMIES
+	ENEMIES += [Orb() for i in range(8)]
+	ENEMIES += [Orb(variety='LIEUTENANT') for i in range(3)]
+	ENEMIES += [Ring() for i in range(5)]
+	ENEMIES += [Orb(variety='GENERAL') for i in range(3)]
+	#ENEMIES += [OrbFleeing(variety='COWARD') for i in range(5)]
+
+def call_boss_func():
+	global ENEMIES
+	ENEMIES += [Orb(variety='GENERAL')]
+
+new_button(referrent=SharedValue('next wave'), position=(22.5, 200), click_functionality=next_wave_func)
+new_button(referrent=SharedValue('boss ball'), position=(22.5, 325), click_functionality=call_boss_func)
+new_button(referrent=SharedValue('clear screen'), position=(22.5, 450), click_functionality=clear_screen_func)
+new_button(referrent=SharedValue('Spawn many'), position=(22.5, 575), click_functionality=spawn_horde_func)
+
+
 
 while not retire:
 	clock.tick(FPS)
@@ -427,54 +487,25 @@ while not retire:
 		if event.type == pg.QUIT:
 			retire = True
 		elif event.type == pg.MOUSEBUTTONDOWN:
-			next_wave_button.click()
-			boss_button.click()
-			clear_button.click()
-			many_button.click()
-
+			click_buttons()
 			if manip.reload_state < manip.loaded_margin:
 				continue
 			else:
 				manip.unload()
-				for nme in enemies:
-					nme.hit()
+				for nme in ENEMIES:
+					nme.hit(manip.dmg)
 			
 	display_edges()
-
-	if update_flag.val:
-		enemies += [Orb() for i in range(3)]
-		enemies += [Ring()]
-		update_flag.switch()
-
-	if boss_flag.val:
-		enemies += [OrbUnreflecting(variety='GENERAL')]
-		boss_flag.switch()
-
-	if clear_flag.val:
-		enemies = []
-		clear_flag.switch()
-
-	if many_flag.val:
-		enemies = [Orb() for i in range(8)]
-		enemies += [Orb(variety='LIEUTENANT') for i in range(3)]
-		enemies += [Ring() for i in range(5)]
-		enemies += [OrbUnreflecting(variety='GENERAL') for i in range(3)]
-		enemies += [OrbUnreflecting(variety='LIEUTENANT') for i in range(5)]
-		many_flag.switch()
 	
 	active_screen.fill(BLACK)
 
-	for nme in enemies:
+	for nme in ENEMIES:
 		nme.evolute()
 		if nme.perish:
-			del enemies[enemies.index(nme)]
+			del ENEMIES[ENEMIES.index(nme)]
 		nme.update()
 
-	scoreboard.update()
-	next_wave_button.update()
-	boss_button.update()
-	many_button.update()
-	clear_button.update()
+	update_menu_items()
 	manip.draw()
 	sc.blit(active_screen, ACTIVE_SCREEN_TOPLEFT)
 
