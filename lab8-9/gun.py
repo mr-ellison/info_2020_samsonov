@@ -18,7 +18,8 @@ CYAN = 0x00FFCC
 BLACK = (0, 0, 0)
 WHITE = 0xFFFFFF
 GREY = 0x7D7D7D
-GAME_COLORS = [RED, BLUE, YELLOW, GREEN, MAGENTA, CYAN]
+SPACESHIP = 0x8C86A0
+GAME_COLORS = [GREY, BLUE, YELLOW, GREEN, MAGENTA, CYAN]
 
 WIDTH = 800
 HEIGHT = 600
@@ -104,50 +105,84 @@ class Ball:
         return False
 
 class Platform:
-    def __init__(self, canvas, x=20, y=450, w=30, h=75):
+    def __init__(self, canvas, x=20, y=450, w=30, h=75, color=SPACESHIP):
         self.loc = vec(x, y)
         self.shape = vec(w, h)
-        self.color = MAGENTA
+        self.color = color
         self.sc = canvas
 
+        self.surf = pygame.Surface(self.shape)
+
+        self.v = vec(0, 0) # velocity - ima add Sunless Sea-like controls
     @property
     def x(self):
         return self.loc[0]
     @property
     def y(self):
         return self.loc[1]
+
+    def get_rect(self):
+        return pygame.Rect(self.loc, self.shape)
     
-
     def draw(self):
-        pygame.draw.rect(self.sc, self.color, (self.loc, self.shape))
+        self.surf.fill(self.color)
+        self.sc.blit(self.surf, self.loc)
+        #pygame.draw.rect(self.sc, self.color, (self.loc, self.shape))
 
-    def move(self, direct):
-        v0 = 10
-        if direct in ('ws'):
-            self.loc += (0, v0 * -1 if direct=='w' else 1)
-
-            if self.y < 0:
-                self.loc[1] = 0
-            if self.y > HEIGHT:
-                self.loc[1] = HEIGHT
-        if direct in ('ad'):
-            self.loc += (v0 * 1 if direct=='d' else -1, 0)
-            if self.x < 0:
-                self.loc[0] = 0
-            if self.x > WIDTH:
-                self.loc[0] = WIDTH
+    def move(self):
+        self.loc += self.v
+        if self.y < 0:
+            self.loc[1] = 0
+        if self.y > HEIGHT - self.shape[1]:
+            self.loc[1] = HEIGHT - self.shape[1]
+        if self.x < 0:
+            self.loc[0] = 0
+        if self.x > WIDTH//4 - self.shape[0]:
+            self.loc[0] = WIDTH//4 - self.shape[0]
 
 class Tank(Platform):
+    v0 = 1.5
+    max_steam = (1, 2)
+
     def __init__(self, canvas, *args, **kwargs):
         super().__init__(canvas, *args, **kwargs)
-        self.cannon = Gun(self.sc, *self.loc)
+        self.cannon = Gun(self.sc, *(self.loc - self.shape//2))
+        self.steam = vec(0, 0)
 
-    def move(self, direct):
-        super().move(direct)
+    def control(self, direct):
+        if direct == 's':
+            self.steam[1] = min(self.steam[1] + 1, self.max_steam[1])
+        elif direct == 'w':
+            self.steam[1] = max(self.steam[1] - 1, -self.max_steam[1])
+        elif direct == 'a':
+            self.steam[0] = max(self.steam[0] - 1, -self.max_steam[0])
+        elif direct == 'd':
+            self.steam[0] = min(self.steam[0] + 1, self.max_steam[0])            
+
+    def move(self):
+        self.v = self.steam * self.v0
+        super().move()
         self.cannon.set_loc(self.loc + self.shape//2)
 
     def draw(self):
-        super().draw()
+        self.surf.fill(self.color)
+        if self.steam[1] >= 1:
+            pygame.draw.rect(self.surf, YELLOW, 
+                ((self.shape[0]//2 - 10, 4*self.shape[1]//6), 
+                                (20, 10)))
+        if self.steam[1] == 2:
+            pygame.draw.rect(self.surf, RED, 
+                ((self.shape[0]//2 - 10, 5*self.shape[1]//6), 
+                                (20, 10)))
+        if self.steam[1] <= -1:
+            pygame.draw.rect(self.surf, YELLOW, 
+                ((self.shape[0]//2 - 10, self.shape[1]//6), 
+                                (20, 10)))
+        if self.steam[1] == -2:
+            pygame.draw.rect(self.surf, RED, 
+                ((self.shape[0]//2 - 10, 0), 
+                                (20, 10)))
+        self.sc.blit(self.surf, self.loc)
         self.cannon.draw()
 
 class Gun:
@@ -156,7 +191,7 @@ class Gun:
         self.f2_power = 10
         self.f2_on = 0
         self.an = 1
-        self.color = GREY
+        self.color = WHITE
         self.loc = vec(x, y)
 
     def fire2_start(self, event):
@@ -170,7 +205,7 @@ class Gun:
         """
         global balls, bullet
         bullet += 1
-        new_ball = Ball(self.screen)
+        new_ball = Ball(self.screen, *self.loc)
         new_ball.r += 5
         self.an = math.atan2((event.pos[1]-new_ball.y), (event.pos[0]-new_ball.x))
         new_ball.v[0] = self.f2_power * math.cos(self.an)
@@ -180,13 +215,14 @@ class Gun:
         self.f2_power = 10
 
     def targetting(self, event):
-        """Прицеливание. Зависит от положения мыши."""
+        """Прице
+        ливание. Зависит от положения мыши."""
         if event:
             self.an = math.atan((event.pos[1]-self.loc[1]) / (event.pos[0]-self.loc[0]))
         if self.f2_on:
             self.color = RED
         else:
-            self.color = GREY
+            self.color = WHITE
 
     def set_loc(self, location):
         self.loc = location
@@ -203,8 +239,7 @@ class Gun:
                 self.f2_power += 1
             self.color = RED
         else:
-            self.color = GREY
-
+            self.color = WHITE
 
 class Target:
     def __init__(self, canvas):
@@ -217,10 +252,12 @@ class Target:
 
     def new_target(self):
         """ Инициализация новой цели. """
-        x = rnd(600, 780)
-        y = rnd(300, 550)
-        self.loc = vec(x, y)
         r = self.r = rnd(2, 50)
+
+        x = rnd(WIDTH*3//4 + r, WIDTH - r)
+        y = rnd(r, HEIGHT - r)
+        self.loc = vec(x, y)
+
         self.v = vec(rnd(-5, 5), rnd(-5, 5))
         color = self.color = RED
 
@@ -246,9 +283,9 @@ class Target:
     def move(self):
         self.loc += self.v
 
-        if abs(self.y - HEIGHT//2) > HEIGHT//2:
+        if abs(self.y - HEIGHT//2) > HEIGHT//2 - self.r:
             self.v = self.v.elementwise() * vec(1, -1)
-        if abs(self.x - WIDTH//2) > WIDTH//2:
+        if abs(self.x - 7*WIDTH//8) > WIDTH//8 - self.r:
             self.v = self.v.elementwise() * vec(-1, 1)
 
     def draw(self):
@@ -293,9 +330,15 @@ gun = tank.cannon
 targets = Enemies(screen)
 finished = False
 
+def reset_screen(sc):
+    sc.fill(BLACK)
+    line(sc, WHITE, (WIDTH//4, 0), (WIDTH//4, HEIGHT), width=2)
+    line(sc, WHITE, (3*WIDTH//4, 0), (3*WIDTH//4, HEIGHT), width=2)
+
 
 while not finished:
-    screen.fill(WHITE)
+    reset_screen(screen)
+    tank.move()
     tank.draw()
     for b in balls:
         b.draw()
@@ -314,7 +357,7 @@ while not finished:
         elif event.type == pygame.MOUSEMOTION:
             gun.targetting(event)
         elif event.type == pygame.KEYDOWN and event.unicode in 'wasd':
-            tank.move(event.unicode)
+            tank.control(event.unicode)
 
     for i, b in enumerate(balls):
         b.move()
