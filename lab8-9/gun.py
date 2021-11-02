@@ -1,52 +1,56 @@
-from random import randrange as rnd, choice
-import tkinter as tk
 import math
-import time
+from random import choice, randint as rnd
 
-# print (dir(math))
+import pygame
 
-root = tk.Tk()
-fr = tk.Frame(root)
-root.geometry('800x600')
-canv = tk.Canvas(root, bg='white')
-canv.pack(fill=tk.BOTH, expand=1)
+from pygame.draw import line
+from pygame.math import Vector2 as vec
 
+
+FPS = 30
+
+RED = 0xFF0000
+BLUE = 0x0000FF
+YELLOW = 0xFFC91F
+GREEN = 0x00FF00
+MAGENTA = 0xFF03B8
+CYAN = 0x00FFCC
+BLACK = (0, 0, 0)
+WHITE = 0xFFFFFF
+GREY = 0x7D7D7D
+GAME_COLORS = [RED, BLUE, YELLOW, GREEN, MAGENTA, CYAN]
+
+WIDTH = 800
+HEIGHT = 600
+
+##### gravitation modelling constants
 g = 2
 decay = 0.5
 stop_threshold = 0.1
 
 
-class ball():
-    def __init__(self, x=40, y=450, vx=0, vy=0):
+class Ball:
+    def __init__(self, screen: pygame.Surface, x=40, y=450):
         """ Конструктор класса ball
 
         Args:
         x - начальное положение мяча по горизонтали
         y - начальное положение мяча по вертикали
         """
-        self.x = x
-        self.y = y
+        self.screen = screen
+        self.loc = vec(x, y)
         self.r = 10
-        self.vx = vx
-        self.vy = vy
-        self.color = choice(['blue', 'green', 'red', 'brown'])
-        self.id = canv.create_oval(
-                self.x - self.r,
-                self.y - self.r,
-                self.x + self.r,
-                self.y + self.r,
-                fill=self.color
-        )
-        self.live = 30
+        self.v = vec(0, 0)
+        self.color = choice(GAME_COLORS)
+        self._fallen = False
 
-    def set_coords(self):
-        canv.coords(
-                self.id,
-                self.x - self.r,
-                self.y - self.r,
-                self.x + self.r,
-                self.y + self.r
-        )
+    @property
+    def x(self):
+        return self.loc[0]
+
+    @property
+    def y(self):
+        return self.loc[1]
 
     def move(self):
         """Переместить мяч по прошествии единицы времени.
@@ -55,31 +59,35 @@ class ball():
         self.x и self.y с учетом скоростей self.vx и self.vy, силы гравитации, действующей на мяч,
         и стен по краям окна (размер окна 800х600).
         """
-
-        #screen rect (20, 0), (800, 450)
         # FIXME
-        global g, canv, stop_threshold
-        self.x += self.vx
-        self.y += self.vy
-        self.vy += g
+        self.loc += self.v
+        self.v += vec(0, g)
 
-        if self.y > 600 :
-            self.y = 600
-            self.vy = -decay*self.vy
-            self.vx *= decay
+        if self.y > 600:
+            self.loc[1] = 600
+            self.v = self.v.elementwise() * vec(decay, -decay)
 
-        if self.x > 800 :
-            self.x = 800
-            self.vx = -1* self.vx
+        if self.x > 800:
+            self.loc[0] = 800
+            self.v = self.v.elementwise() * vec(-1, 1)
 
-        if abs(self.vx) < stop_threshold:
-            self.vx = 0
+        if abs(self.v[0]) < stop_threshold:
+            self.v[0] = 0
         
-        if self.vx == 0:
-            self.vy = 0
-        
-        self.set_coords()
+        if self.v[0] == 0:
+            self.v[1] = 0
+            self._fallen = True
+    @property
+    def deadman(self):
+        return self._fallen
 
+    def draw(self):
+        pygame.draw.circle(
+            self.screen,
+            self.color,
+            self.loc,
+            self.r
+        )
 
     def hittest(self, obj):
         """Функция проверяет сталкивалкивается ли данный обьект с целью, описываемой в обьекте obj.
@@ -95,20 +103,15 @@ class ball():
             return True
         return False
 
-    def stopped(self):
-        return self.vx**2 + self.vy**2 == 0
 
-    def hide(self):
-        global canv
-        canv.coords(self.id, -10- self.r, -10-self.r, -10-self.r, -10-self.r)
-
-
-class gun():
-    def __init__(self):
+class Gun:
+    def __init__(self, screen):
+        self.screen = screen
         self.f2_power = 10
         self.f2_on = 0
         self.an = 1
-        self.id = canv.create_line(20,450,50,420,width=7) 
+        self.color = GREY
+        self.loc = vec(20, 450)
 
     def fire2_start(self, event):
         self.f2_on = 1
@@ -121,120 +124,152 @@ class gun():
         """
         global balls, bullet
         bullet += 1
-        print(f'Used {bullet} bullets')
-        new_ball = ball()
+        new_ball = Ball(self.screen)
         new_ball.r += 5
-        self.an = math.atan((event.y-new_ball.y) / (event.x-new_ball.x))
-        new_ball.vx = self.f2_power * math.cos(self.an)
-        new_ball.vy = self.f2_power * math.sin(self.an)
-        balls += [new_ball]
+        self.an = math.atan2((event.pos[1]-new_ball.y), (event.pos[0]-new_ball.x))
+        new_ball.v[0] = self.f2_power * math.cos(self.an)
+        new_ball.v[1] = self.f2_power * math.sin(self.an)
+        balls.append(new_ball)
         self.f2_on = 0
         self.f2_power = 10
 
-    def targetting(self, event=0):
+    def targetting(self, event):
         """Прицеливание. Зависит от положения мыши."""
         if event:
-            self.an = math.atan((event.y-450) / (event.x-20))
+            self.an = math.atan((event.pos[1]-self.loc[1]) / (event.pos[0]-self.loc[0]))
         if self.f2_on:
-            canv.itemconfig(self.id, fill='orange')
+            self.color = RED
         else:
-            canv.itemconfig(self.id, fill='black')
-        canv.coords(self.id, 20, 450,
-                    20 + max(self.f2_power, 20) * math.cos(self.an),
-                    450 + max(self.f2_power, 20) * math.sin(self.an)
-                    )
+            self.color = GREY
+
+    def draw(self):
+        line(self.screen, self.color, self.loc, 
+            self.loc + max(self.f2_power, 20) * 
+            vec(math.cos(self.an), math.sin(self.an)),
+            width = 7)
 
     def power_up(self):
         if self.f2_on:
             if self.f2_power < 100:
                 self.f2_power += 1
-            canv.itemconfig(self.id, fill='orange')
+            self.color = RED
         else:
-            canv.itemconfig(self.id, fill='black')
+            self.color = GREY
 
 
-class target():
-    def __init__(self):
+class Target:
+    def __init__(self, canvas):
+        self.sc = canvas
         self.points = 0
-        self.id = canv.create_oval(0,0,0,0)
-        self.id_points = canv.create_text(30,30,text = self.points,font = '28')
+        self.live = 1
+        self._fallen = False
+        #(((FIXME: don't work!!! How to call this functions when object is created?
         self.new_target()
-
-        self._live = 1
-
-    @property
-    def live(self):
-        return self._live
-    
 
     def new_target(self):
         """ Инициализация новой цели. """
-        x = self.x = rnd(600, 780)
-        y = self.y = rnd(300, 550)
-        r = self.r = rnd(10, 50)
-        color = self.color = 'red'
-        canv.coords(self.id, x-r, y-r, x+r, y+r)
-        canv.itemconfig(self.id, fill=color)
+        x = rnd(600, 780)
+        y = rnd(300, 550)
+        self.loc = vec(x, y)
+        r = self.r = rnd(2, 50)
+        self.v = vec(rnd(-5, 5), rnd(-5, 5))
+        color = self.color = RED
+
+    @property
+    def x(self):
+        return self.loc[0]
+    @property
+    def y(self):
+        return self.loc[1]
 
     def hit(self, points=1):
         """Попадание шарика в цель."""
-        canv.coords(self.id, -10, -10, -10, -10)
-        self.points += points
-        canv.itemconfig(self.id_points, text=self.points)
+        self.live -= 1
+        if self.live <= 0:
+            self.retire()
 
     def retire(self):
-        self._live = False
+        self._fallen = True
+    @property
+    def deadman(self):
+        return self._fallen
 
-    def __bool__(self):
-        return bool(self._live)
+    def move(self):
+        self.loc += self.v
 
-targets = [target(), target()]
-screen1 = canv.create_text(400, 300, text='', font='28')
-g1 = gun()
+        if abs(self.y - HEIGHT//2) > HEIGHT//2:
+            self.v = self.v.elementwise() * vec(1, -1)
+        if abs(self.x - WIDTH//2) > WIDTH//2:
+            self.v = self.v.elementwise() * vec(-1, 1)
+
+    def draw(self):
+        pygame.draw.circle(
+            self.sc,
+            self.color,
+            self.loc,
+            self.r
+        )
+
+class Enemies:
+    def __init__(self, canvas, n=2):
+        self.targets = [Target(canvas) for i in range(n)]
+
+    def new_target(self):
+        self.targets += [Target(canvas)]
+
+    def draw(self):
+        for t in self.targets:
+            t.draw()
+    def move(self):
+        for t in self.targets:
+            t.move()
+
+def handle_hits(b: Ball, ts: Enemies):
+    for i, t in enumerate(ts.targets):
+        if b.hittest(t):
+            t.hit()
+            if t.deadman:
+                del ts.targets[i]
+
+
+
+pygame.init()
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
 bullet = 0
 balls = []
 
-def hit_target(b: ball, t: target):
-    if b.hittest(t) and t:
-        t.retire()
-        t.hit()
-        b.hide()
+clock = pygame.time.Clock()
+gun = Gun(screen)
+targets = Enemies(screen)
+finished = False
 
 
-def new_game(event=''):
-    global gun, targets, screen1, balls, bullet
-    for t in targets:
-        t.new_target()
-    bullet = 0
-    balls = []
-    canv.bind('<Button-1>', g1.fire2_start)
-    canv.bind('<ButtonRelease-1>', g1.fire2_end)
-    canv.bind('<Motion>', g1.targetting)
+while not finished:
+    screen.fill(WHITE)
+    gun.draw()
+    for b in balls:
+        b.draw()
+    targets.move()
+    targets.draw()
+    pygame.display.update()
 
-    z = 0.03
-    while any(targets) or balls:
-        for i, b in enumerate(balls):
-            b.move()
-            if b.stopped():
-                    b.hide()
-                    deadman = balls[i]
-                    canv.delete(deadman)
-                    del deadman
-            for t in targets:
-                hit_target(b, t)
-            if not any(targets):
-                canv.bind('<Button-1>', '')
-                canv.bind('<ButtonRelease-1>', '')
-                canv.itemconfig(screen1, text='Вы уничтожили все цели за ' + str(bullet) + ' выстрелов')
-        canv.update()
-        time.sleep(0.03)
-        g1.targetting()
-        g1.power_up()
-    canv.itemconfig(screen1, text='')
-    canv.delete(gun)
-    root.after(750, new_game)
+    clock.tick(FPS)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            finished = True
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            gun.fire2_start(event)
+        elif event.type == pygame.MOUSEBUTTONUP:
+            gun.fire2_end(event)
+        elif event.type == pygame.MOUSEMOTION:
+            gun.targetting(event)
 
+    for i, b in enumerate(balls):
+        b.move()
+        handle_hits(b, targets)
 
-new_game()
+        if b.deadman:
+            del balls[i]
+    gun.power_up()
 
-mainloop()
+pygame.quit()
