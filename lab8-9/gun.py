@@ -103,15 +103,61 @@ class Ball:
             return True
         return False
 
+class Platform:
+    def __init__(self, canvas, x=20, y=450, w=30, h=75):
+        self.loc = vec(x, y)
+        self.shape = vec(w, h)
+        self.color = MAGENTA
+        self.sc = canvas
+
+    @property
+    def x(self):
+        return self.loc[0]
+    @property
+    def y(self):
+        return self.loc[1]
+    
+
+    def draw(self):
+        pygame.draw.rect(self.sc, self.color, (self.loc, self.shape))
+
+    def move(self, direct):
+        v0 = 10
+        if direct in ('ws'):
+            self.loc += (0, v0 * -1 if direct=='w' else 1)
+
+            if self.y < 0:
+                self.loc[1] = 0
+            if self.y > HEIGHT:
+                self.loc[1] = HEIGHT
+        if direct in ('ad'):
+            self.loc += (v0 * 1 if direct=='d' else -1, 0)
+            if self.x < 0:
+                self.loc[0] = 0
+            if self.x > WIDTH:
+                self.loc[0] = WIDTH
+
+class Tank(Platform):
+    def __init__(self, canvas, *args, **kwargs):
+        super().__init__(canvas, *args, **kwargs)
+        self.cannon = Gun(self.sc, *self.loc)
+
+    def move(self, direct):
+        super().move(direct)
+        self.cannon.set_loc(self.loc + self.shape//2)
+
+    def draw(self):
+        super().draw()
+        self.cannon.draw()
 
 class Gun:
-    def __init__(self, screen):
+    def __init__(self, screen, x=20, y=450):
         self.screen = screen
         self.f2_power = 10
         self.f2_on = 0
         self.an = 1
         self.color = GREY
-        self.loc = vec(20, 450)
+        self.loc = vec(x, y)
 
     def fire2_start(self, event):
         self.f2_on = 1
@@ -141,6 +187,9 @@ class Gun:
             self.color = RED
         else:
             self.color = GREY
+
+    def set_loc(self, location):
+        self.loc = location
 
     def draw(self):
         line(self.screen, self.color, self.loc, 
@@ -239,14 +288,15 @@ bullet = 0
 balls = []
 
 clock = pygame.time.Clock()
-gun = Gun(screen)
+tank = Tank(screen)
+gun = tank.cannon
 targets = Enemies(screen)
 finished = False
 
 
 while not finished:
     screen.fill(WHITE)
-    gun.draw()
+    tank.draw()
     for b in balls:
         b.draw()
     targets.move()
@@ -263,6 +313,8 @@ while not finished:
             gun.fire2_end(event)
         elif event.type == pygame.MOUSEMOTION:
             gun.targetting(event)
+        elif event.type == pygame.KEYDOWN and event.unicode in 'wasd':
+            tank.move(event.unicode)
 
     for i, b in enumerate(balls):
         b.move()

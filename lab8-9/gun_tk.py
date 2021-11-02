@@ -15,7 +15,6 @@ g = 2
 decay = 0.5
 stop_threshold = 0.1
 
-
 class ball():
     def __init__(self, x=40, y=450, vx=0, vy=0):
         """ Конструктор класса ball
